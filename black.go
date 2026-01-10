@@ -2,10 +2,12 @@ package letsberational
 
 import "math"
 
+// Region boundary tuning parameters (latest Jaeckel 2024 values).
+// eta defines the threshold for Region I (asymptotic expansion).
+// tau is computed as 2 * DBL_EPSILON^(1/16) ≈ 0.21.
 const (
-	// eta and tau are the tuning parameters for the boundary of Region I and II.
-	eta = -10.0
-	tau = 1.15
+	eta = -13.0
+	tau = 0.21022410381342863 // 2 * math.Pow(epsilon, 1.0/16.0)
 )
 
 func normalizedBlack(thetaX, s float64) float64 {
@@ -101,10 +103,20 @@ func normalisedBlackWithOptimalUseOfCodysFunctions(thetaX, s float64) float64 {
 	return math.Max(0.5*twoB, 0.0)
 }
 
+// isRegionI checks if we should use the asymptotic expansion.
+// Region I: h < η and t < (τ+½) + (|h|-|η|)
+// where h = θx/s and t = s/2.
+// Rewritten to avoid division by s:
+//   s·(s/2-(τ+½+η)) + θx < 0
 func isRegionI(thetaX, s float64) bool {
 	return thetaX < s*eta && s*(0.5*s-(tau+0.5+eta))+thetaX < 0
 }
 
+// isRegionII checks if we should use the small-t expansion.
+// Region II: t < τ + (½/|η|)·|h|
+// where h = θx/s and t = s/2.
+// Rewritten to avoid division by s:
+//   s·(s-2·τ) - θx/η < 0
 func isRegionII(thetaX, s float64) bool {
-	return s*(s-(2*tau))-thetaX/eta < 0
+	return s*(s-2*tau)-thetaX/eta < 0
 }
