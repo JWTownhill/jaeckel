@@ -1,4 +1,4 @@
-package letsberational
+package jaeckel
 
 import "math"
 
@@ -11,15 +11,15 @@ const (
 // Default maximum iterations for implied volatility calculation
 const impliedVolatilityMaxIterations = 2
 
-// letsBerational computes the normalised implied Black volatility using
+// letsBerational computes the normalized implied Black volatility using
 // Peter Jäckel's "Let's Be Rational" algorithm.
 //
 // Parameters:
-//   - beta: The normalised option price (must be positive)
+//   - beta: The normalized option price (must be positive)
 //   - thetaX: θ·x where θ=±1 (call/put) and x=ln(F/K). Must satisfy θx ≤ 0.
 //   - n: Maximum number of iterations (typically 2 is sufficient)
 //
-// Returns the normalised implied volatility s = σ√T.
+// Returns the normalized implied volatility s = σ√T.
 //
 // Special return values:
 //   - volatilityValueToSignalPriceIsBelowIntrinsic: if price is below intrinsic
@@ -42,7 +42,7 @@ func letsBerational(beta, thetaX float64, n int) float64 {
 
 	// Specialise for exact ATM case
 	if thetaX == 0 {
-		return impliedNormalisedVolatilityATM(beta)
+		return impliedNormalizedVolatilityATM(beta)
 	}
 
 	// Critical point calculation
@@ -68,7 +68,7 @@ func letsBerational(beta, thetaX float64, n int) float64 {
 			// Iterate using logarithmic objective function
 			lnBeta := math.Log(beta)
 			for i := 0; i < n && math.Abs(ds) > epsilon*s; i++ {
-				bx, lnVega := scaledNormalisedBlackAndLnVega(thetaX, s)
+				bx, lnVega := scaledNormalizedBlackAndLnVega(thetaX, s)
 				lnB := math.Log(bx) + lnVega
 				bpob := 1 / bx // b'/b in scaled form
 
@@ -104,7 +104,7 @@ func letsBerational(beta, thetaX float64, n int) float64 {
 		} else {
 			// LOWER MIDDLE: s_l ≤ s < s_c
 			invVC := sqrtTwoPi / bMax
-			invVL := invNormalisedVega(thetaX, sL)
+			invVL := invNormalizedVega(thetaX, sL)
 			rLM := convexControlParameterToFitSecondDerivativeAtRightSide(bL, bC, sL, sC, invVL, invVC, 0.0, false)
 			s = interpolate(beta, bL, bC, sL, sC, invVL, invVC, rLM)
 		}
@@ -116,7 +116,7 @@ func letsBerational(beta, thetaX float64, n int) float64 {
 		if beta <= bU {
 			// UPPER MIDDLE: s_c ≤ s ≤ s_u
 			invVC := sqrtTwoPi / bMax
-			invVU := invNormalisedVega(thetaX, sU)
+			invVU := invNormalizedVega(thetaX, sU)
 			rUM := convexControlParameterToFitSecondDerivativeAtLeftSide(bC, bU, sC, sU, invVC, invVU, 0.0, false)
 			s = interpolate(beta, bC, bU, sC, sU, invVC, invVU, rUM)
 		} else {
@@ -162,7 +162,7 @@ func letsBerational(beta, thetaX float64, n int) float64 {
 	// Simple objective function: g(s) = b(θx,s) - β
 	for i := 0; i < n && math.Abs(ds) > epsilon*s; i++ {
 		b := normalizedBlack(thetaX, s)
-		invBp := invNormalisedVega(thetaX, s)
+		invBp := invNormalizedVega(thetaX, s)
 		nu := (beta - b) * invBp
 		h := thetaX / s
 		x2OverS3 := (h * h) / s
@@ -212,27 +212,27 @@ func highestBranchInitialGuess(thetaX, sU, bU, bMax, beta float64) float64 {
 	return inverseFUpperMap(f)
 }
 
-// scaledNormalisedBlackAndLnVega returns both the scaled normalised Black price
+// scaledNormalizedBlackAndLnVega returns both the scaled normalized Black price
 // and the natural log of vega for efficiency in the iteration.
-func scaledNormalisedBlackAndLnVega(thetaX, s float64) (bx, lnVega float64) {
+func scaledNormalizedBlackAndLnVega(thetaX, s float64) (bx, lnVega float64) {
 	h := thetaX / s
 	t := 0.5 * s
 	lnVega = -0.5*math.Log(twoPi) - 0.5*(h*h+t*t)
 
 	if isRegionI(thetaX, s) {
-		return asymptoticExpansionOfScaledNormalisedBlack(h, t), lnVega
+		return asymptoticExpansionOfScaledNormalizedBlack(h, t), lnVega
 	}
 	if isRegionII(thetaX, s) {
 		return smallTExpansionOfScaledNormalizedBlack(h, t), lnVega
 	}
 
-	// Region III/IV: compute via Cody's functions and scale
-	b := normalisedBlackWithOptimalUseOfCodysFunctions(thetaX, s)
+	// Region III/IV: standard computation
+	b := normalizedBlackStandard(thetaX, s)
 	return b * math.Exp(-lnVega), lnVega
 }
 
-// invNormalisedVega returns 1/vega for numerical stability.
-func invNormalisedVega(x, s float64) float64 {
+// invNormalizedVega returns 1/vega for numerical stability.
+func invNormalizedVega(x, s float64) float64 {
 	ax := math.Abs(x)
 	if ax <= 0 {
 		return sqrtTwoPi * math.Exp(0.125*s*s)
@@ -253,8 +253,8 @@ func computeFLowerMapAndDerivatives(x, s float64) (f, fp, fpp float64) {
 	y := z * z
 	s2 := s * s
 
-	phi := normCDF(-z)
-	phiFunc := normPDF(z)
+	phi := NormCDF(-z)
+	phiFunc := NormPDF(z)
 
 	fpp = piOverSix * y / (s2 * s) * phi * (8*sqrtThree*s*ax + (3*s2*(s2-8)-8*x*x)*phi/phiFunc) * math.Exp(2*y+0.25*s2)
 
@@ -272,13 +272,13 @@ func inverseFLowerMap(x, f float64) float64 {
 	}
 	ax := math.Abs(x)
 	// Use math.Abs on result as inverseNormCDF can return negative for small probabilities
-	return math.Abs(x / (sqrtThree * inverseNormCDF(sqrtThreeOverThirdRootTwoPi*math.Cbrt(f)/math.Cbrt(ax))))
+	return math.Abs(x / (sqrtThree * InverseNormCDF(sqrtThreeOverThirdRootTwoPi*math.Cbrt(f)/math.Cbrt(ax))))
 }
 
 // computeFUpperMapAndDerivatives computes f_upper_map and its first two derivatives.
 // This is used for rational cubic interpolation in the highest branch.
 func computeFUpperMapAndDerivatives(x, s float64) (f, fp, fpp float64) {
-	f = normCDF(-0.5 * s)
+	f = NormCDF(-0.5 * s)
 	w := (x / s) * (x / s)
 	fp = -0.5 * math.Exp(0.5*w)
 	fpp = sqrtPiOverTwo * math.Exp(w+0.125*s*s) * w / s
@@ -287,7 +287,7 @@ func computeFUpperMapAndDerivatives(x, s float64) (f, fp, fpp float64) {
 
 // inverseFUpperMap inverts the upper mapping function.
 func inverseFUpperMap(f float64) float64 {
-	return -2 * inverseNormCDF(f)
+	return -2 * InverseNormCDF(f)
 }
 
 // bLOverBMax computes b_l(x)/b_max(x) using Remez-optimized rational approximations.
@@ -338,4 +338,67 @@ func bUOverBMax(sC float64) float64 {
 	// Branch IV: largest |x|
 	return (7.91133825948419359e-1 + sC*(1.24653733210880042+sC*(1.32747426980537386+sC*(6.95009705717846778e-1+sC*(3.05965944268228457e-1+sC*(6.02200363391352887e-2+1.29050244454344842e-2*sC)))))) /
 		(1 + sC*(1.58117486714634672+sC*(1.60144713247629644+sC*(8.30040185836882436e-1+sC*(3.53071863813401531e-1+sC*(6.95901684131758475e-2+1.44197580643890011e-2*sC))))))
+}
+
+// ImpliedBlackVolatility computes the implied Black volatility from an option price.
+//
+// Parameters:
+//   - price: The undiscounted option price
+//   - F: Forward price
+//   - K: Strike price
+//   - T: Time to expiry (in years)
+//   - q: Option type indicator: +1 for call, -1 for put
+//
+// Returns the implied volatility (annualized).
+//
+// Special return values:
+//   - -Inf: price is below intrinsic value (arbitrage)
+//   - +Inf: price is above maximum possible value
+func ImpliedBlackVolatility(price, F, K, T, q float64) float64 {
+	maxPrice := F
+	if q < 0 {
+		maxPrice = K
+	}
+	if price >= maxPrice {
+		return volatilityValueToSignalPriceIsAboveMaximum
+	}
+
+	// Map ITM to OTM
+	x := math.Log(F / K)
+	intrinsic := 0.0
+	if q < 0 {
+		if K > F {
+			intrinsic = K - F
+		}
+	} else {
+		if F > K {
+			intrinsic = F - K
+		}
+	}
+
+	sqrtFK := math.Sqrt(F) * math.Sqrt(K)
+	beta := (price - intrinsic) / sqrtFK
+
+	normalizedVol := letsBerational(beta, -math.Abs(x), impliedVolatilityMaxIterations)
+	return normalizedVol / math.Sqrt(T) // annualize
+}
+
+// NormalizedImpliedBlackVolatility computes the normalized implied volatility.
+//
+// Parameters:
+//   - beta: The normalized option price
+//   - x: log(F/K), the log-moneyness
+//   - q: Option type indicator: +1 for call, -1 for put
+//
+// Returns the normalized implied volatility s = σ√T.
+//
+// Special return values:
+//   - -Inf: price is below intrinsic value
+//   - +Inf: price is above maximum possible value
+func NormalizedImpliedBlackVolatility(beta, x, q float64) float64 {
+	thetaX := x
+	if q < 0 {
+		thetaX = -x
+	}
+	return letsBerational(beta-normalizedIntrinsic(thetaX), -math.Abs(x), impliedVolatilityMaxIterations)
 }

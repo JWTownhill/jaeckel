@@ -1,4 +1,4 @@
-package letsberational
+package jaeckel
 
 import (
 	"math"

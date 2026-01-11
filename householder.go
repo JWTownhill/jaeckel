@@ -1,4 +1,4 @@
-package letsberational
+package jaeckel
 
 // householder3Factor computes the third-order Householder correction factor.
 //

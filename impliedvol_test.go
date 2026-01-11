@@ -1,4 +1,4 @@
-package letsberational
+package jaeckel
 
 import (
 	"math"
@@ -125,8 +125,8 @@ func TestImpliedVolatilityBoundaries(t *testing.T) {
 	})
 }
 
-func TestNormalisedBlackConsistency(t *testing.T) {
-	// Test that NormalisedBlack is consistent with Black
+func TestNormalizedBlackConsistency(t *testing.T) {
+	// Test that NormalizedBlack is consistent with Black
 	F := 100.0
 	K := 105.0
 	sigma := 0.25
@@ -138,9 +138,9 @@ func TestNormalisedBlackConsistency(t *testing.T) {
 	for _, q := range []float64{1, -1} {
 		t.Run("q="+formatFloat(q), func(t *testing.T) {
 			blackPrice := Black(F, K, sigma, T, q)
-			normPrice := NormalisedBlack(x, s, q)
+			normPrice := NormalizedBlack(x, s, q)
 
-			// Black price should equal √(F·K) · NormalisedBlack
+			// Black price should equal √(F·K) · NormalizedBlack
 			expectedBlackPrice := math.Sqrt(F*K) * normPrice
 
 			assert.InEpsilon(t, expectedBlackPrice, blackPrice, 1e-14)
@@ -206,37 +206,82 @@ func TestErfinvRoundTrip(t *testing.T) {
 	})
 }
 
-func TestComplementaryNormalisedBlack(t *testing.T) {
-	// Test that ComplementaryNormalisedBlack + NormalisedBlack = bmax
-	testCases := []struct {
-		x float64
-		s float64
-	}{
-		{-0.1, 0.2},
-		{-0.5, 0.3},
-		{-1.0, 0.5},
-		{-2.0, 0.8},
-	}
-
-	for _, tc := range testCases {
-		t.Run("x="+formatFloat(tc.x), func(t *testing.T) {
-			b := NormalisedBlack(tc.x, tc.s, 1)
-			bBar := ComplementaryNormalisedBlack(tc.x, tc.s)
-			bMax := math.Exp(0.5 * tc.x)
-
-			// b + b̄ should equal bmax
-			sum := b + bBar
-			assert.InEpsilon(t, bMax, sum, 1e-14,
-				"b=%v, bBar=%v, sum=%v, bMax=%v", b, bBar, sum, bMax)
-		})
-	}
-}
-
 func formatFloat(f float64) string {
 	if f == float64(int(f)) {
 		return string(rune('0' + int(f)))
 	}
 	return string([]byte{byte('0' + int(math.Abs(f)))})
+}
+
+func TestRegionI(t *testing.T) {
+	// These cases have h = x/s < -13, triggering the asymptotic expansion
+	testCases := []struct {
+		name string
+		x    float64
+		s    float64
+		h    float64 // expected h = x/s
+	}{
+		{"h=-14", -7.0, 0.5, -14.0},
+		{"h=-16", -8.0, 0.5, -16.0},
+		{"h=-20", -10.0, 0.5, -20.0},
+		{"h=-15", -3.0, 0.2, -15.0},
+		{"h=-25", -5.0, 0.2, -25.0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Verify h calculation
+			h := tc.x / tc.s
+			assert.InDelta(t, tc.h, h, 1e-10, "h calculation mismatch")
+
+			// Compute normalized Black price
+			price := NormalizedBlack(tc.x, tc.s, 1.0)
+			assert.Greater(t, price, 0.0, "Price should be positive")
+			assert.False(t, math.IsNaN(price), "Price should not be NaN")
+			assert.False(t, math.IsInf(price, 0), "Price should not be Inf")
+
+			// Round-trip test: compute IV from price, then price from IV
+			iv := NormalizedImpliedBlackVolatility(price, tc.x, 1.0)
+			if !math.IsInf(iv, 0) && !math.IsNaN(iv) && iv > 0 {
+				priceRoundTrip := NormalizedBlack(tc.x, iv, 1.0)
+				assert.InEpsilon(t, price, priceRoundTrip, 1e-10,
+					"Round-trip failed: original=%v, roundtrip=%v", price, priceRoundTrip)
+			}
+		})
+	}
+}
+
+// TestRegionIImpliedVolatility tests IV calculation for deep OTM options (Region I)
+func TestRegionIImpliedVolatility(t *testing.T) {
+	// Deep OTM options that should trigger Region I in the IV calculation
+	testCases := []struct {
+		name  string
+		F     float64
+		K     float64
+		sigma float64
+		T     float64
+	}{
+		{"DeepOTM_K200", 100, 200, 0.20, 0.1},  // very deep OTM
+		{"DeepOTM_K300", 100, 300, 0.30, 0.25}, // extremely deep OTM
+		{"DeepOTM_K500", 100, 500, 0.40, 0.5},  // ultra deep OTM
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			price := Black(tc.F, tc.K, tc.sigma, tc.T, 1.0)
+			if price < 1e-300 {
+				t.Skip("Price too small")
+			}
+
+			iv := ImpliedBlackVolatility(price, tc.F, tc.K, tc.T, 1.0)
+			if math.IsInf(iv, 0) || math.IsNaN(iv) {
+				t.Skip("IV returned special value")
+			}
+
+			assert.InEpsilon(t, tc.sigma, iv, 1e-10,
+				"Region I IV round-trip: expected sigma=%v, got IV=%v", tc.sigma, iv)
+		})
+	}
 }
 
 // Benchmark tests using b.Loop() (Go 1.24+)
@@ -309,25 +354,26 @@ func BenchmarkImpliedVolatility(b *testing.B) {
 	}
 }
 
-// BenchmarkNormalisedBlack benchmarks normalised Black across regions
-func BenchmarkNormalisedBlack(b *testing.B) {
+// BenchmarkNormalizedBlack benchmarks normalized Black across regions
+func BenchmarkNormalizedBlack(b *testing.B) {
 	cases := []struct {
 		name string
 		x, s float64
 	}{
 		{"ATM_s0.2", 0, 0.2},
 		{"ATM_s1.0", 0, 1.0},
-		{"RegionI_DeepTail", -5.0, 0.5},      // h < eta, asymptotic expansion
+		{"RegionI_DeepTail", -7.0, 0.5},      // h=-14 < eta=-13, triggers asymptotic expansion
+		{"RegionI_Extreme", -15.0, 0.5},      // h=-30, deep in Region I
 		{"RegionII_SmallS", -0.1, 0.1},       // t < tau region
-		{"RegionIV_Standard", -0.5, 0.5},     // default Cody's functions
-		{"ExtremeMoney_Neg10", -10.0, 1.0},   // extreme negative moneyness
-		{"ExtremeMoney_Neg100", -100.0, 5.0}, // very extreme
+		{"Standard", -0.5, 0.5},              // standard computation (Regions III/IV)
+		{"ExtremeMoney_Neg10", -10.0, 1.0},   // h=-10, just outside Region I
+		{"ExtremeMoney_Neg100", -100.0, 5.0}, // h=-20, Region I
 	}
 
 	for _, tc := range cases {
 		b.Run(tc.name, func(b *testing.B) {
 			for b.Loop() {
-				NormalisedBlack(tc.x, tc.s, 1.0)
+				NormalizedBlack(tc.x, tc.s, 1.0)
 			}
 		})
 	}

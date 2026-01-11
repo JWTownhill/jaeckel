@@ -1,4 +1,4 @@
-package letsberational
+package jaeckel
 
 import "math"
 
@@ -30,7 +30,7 @@ func erfinv(x float64) float64 {
 	// For small |x|, we use the midrange branch of inverseNormCDF
 	// which is specifically designed to avoid subtractive cancellation.
 	p := 0.5 * (1 + x)
-	return inverseNormCDF(p) * invSqrtTwo
+	return InverseNormCDF(p) * invSqrtTwo
 }
 
 // erfinvForATMImpliedVolatility computes √8 · erfinv(β) directly.
@@ -56,15 +56,21 @@ func erfinvForATMImpliedVolatility(beta float64) float64 {
 	// For the ATM case, we use p = (1+β)/2 and compute:
 	//   s = 2 · inverseNormCDF(p)
 	p := 0.5 * (1 + beta)
-	return 2 * inverseNormCDF(p)
+	return 2 * InverseNormCDF(p)
 }
 
-// impliedNormalisedVolatilityATM computes the normalised implied volatility
+// impliedNormalizedVolatilityATM computes the normalized implied volatility
 // for the exact at-the-money case (x = 0).
 //
 // At the money, bₐₜₘ(s) = 1 - 2·Φ(-s/2) = 2·Φ(s/2) - 1 = erf(s/√8)
 //
 // Therefore: s = √8 · erfinv(β)
-func impliedNormalisedVolatilityATM(beta float64) float64 {
+func impliedNormalizedVolatilityATM(beta float64) float64 {
 	return erfinvForATMImpliedVolatility(beta)
+}
+
+// Erfinv returns the inverse error function.
+// erfinv(x) satisfies erf(erfinv(x)) = x for x ∈ (-1, 1).
+func Erfinv(x float64) float64 {
+	return erfinv(x)
 }

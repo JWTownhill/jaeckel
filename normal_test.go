@@ -1,4 +1,4 @@
-package letsberational
+package jaeckel
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gonum.org/v1/gonum/stat/distuv"
 )
 
 func TestNormPDF(t *testing.T) {
@@ -22,7 +21,7 @@ func TestNormPDF(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.InDelta(t, tt.expected, normPDF(tt.z), 1e-15)
+			assert.InDelta(t, tt.expected, NormPDF(tt.z), 1e-15)
 		})
 	}
 }
@@ -44,7 +43,7 @@ func TestNormCDF(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := normCDF(tt.z)
+			actual := NormCDF(tt.z)
 			if tt.isEpsilon {
 				assert.InEpsilon(t, tt.expected, actual, 1e-14)
 			} else {
@@ -58,8 +57,8 @@ func TestInverseNormCDF(t *testing.T) {
 	t.Run("RoundTripIdentity", func(t *testing.T) {
 		for _, p := range []float64{0.000001, 0.01, 0.5, 0.99, 0.999999} {
 			t.Run(fmt.Sprintf("p=%v", p), func(t *testing.T) {
-				z := inverseNormCDF(p)
-				pRoundTrip := normCDF(z)
+				z := InverseNormCDF(p)
+				pRoundTrip := NormCDF(z)
 				assert.InEpsilon(t, p, pRoundTrip, 1e-13)
 			})
 		}
@@ -72,7 +71,7 @@ func BenchmarkCDFComparison(b *testing.B) {
 	z := -12.0
 	b.Run("Custom", func(b *testing.B) {
 		for b.Loop() {
-			result = normCDF(z)
+			result = NormCDF(z)
 		}
 	})
 	b.Run("MathErfc", func(b *testing.B) {
@@ -82,17 +81,9 @@ func BenchmarkCDFComparison(b *testing.B) {
 	})
 }
 
-func BenchmarkInverseCDFComparison(b *testing.B) {
+func BenchmarkInverseNormCDF(b *testing.B) {
 	p := 0.00001
-	b.Run("Custom", func(b *testing.B) {
-		for b.Loop() {
-			result = inverseNormCDF(p)
-		}
-	})
-	b.Run("Gonum", func(b *testing.B) {
-		dist := distuv.UnitNormal
-		for b.Loop() {
-			result = dist.Quantile(p)
-		}
-	})
+	for b.Loop() {
+		result = InverseNormCDF(p)
+	}
 }

@@ -1,8 +1,8 @@
-package letsberational
+package jaeckel
 
 import "math"
 
-// We use the full precision strings from Jaeckel's source.
+// We use the full precision numbers from Jaeckel
 const (
 	invSqrtTwo                  = 0.70710678118654752440084436210485
 	codyThreshold               = 0.46875
