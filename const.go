@@ -1,0 +1,20 @@
+package jaeckel
+
+// Shared mathematical constants used across multiple files.
+// Values are hardcoded for compile-time const and maximum precision.
+const (
+	// invSqrtTwo = 1/√2
+	invSqrtTwo = 0.7071067811865475244008443621048490392848359376884740365883398689
+
+	// invSqrtTwoPi = 1/√(2π)
+	invSqrtTwoPi = 0.3989422804014326779399460599343818684758586311649346576659258296
+
+	// twoPi = 2π
+	twoPi = 6.2831853071795864769252867665590057683943387987502116419498891846
+
+	// sqrtPiOverTwo = √(π/2)
+	sqrtPiOverTwo = 1.2533141373155002512078826424055226265034933703049691583149617881
+
+	// epsilon = 2^-52 (machine epsilon for float64)
+	epsilon = 2.220446049250313080847263336181640625e-16
+)
